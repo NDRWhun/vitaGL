@@ -919,11 +919,22 @@ uint8_t reload_ffp_shaders(SceGxmVertexAttribute *attrs, SceGxmVertexStream *str
 			char fshader[8192];
 			char texenv_shad[8192] = {0};
 			GLboolean unused_mode[5] = {GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE};
+			// JK2VITA: emit texenvN defs from the same per-pass snapshot the template
+			// references (mask.tex_env_mode_passN), not the live texture_units[].
+			uint8_t pass_env_modes[3] = {
+				mask.tex_env_mode_pass0,
+				mask.tex_env_mode_pass1,
+#ifdef HAVE_HIGH_FFP_TEXUNITS
+				mask.tex_env_mode_pass2,
+#else
+				0,
+#endif
+			};
 			for (int i = 0; i < mask.num_textures; i++) {
 #ifndef DISABLE_TEXTURE_COMBINER
 				char tmp[1024];
 #endif
-				switch (texture_units[base_texture_id + i].env_mode) {
+				switch (pass_env_modes[i]) {
 				case MODULATE:
 					if (unused_mode[MODULATE]) {
 						sprintf(texenv_shad, "%s\n%s", texenv_shad, modulate_src);
@@ -980,6 +991,11 @@ uint8_t reload_ffp_shaders(SceGxmVertexAttribute *attrs, SceGxmVertexStream *str
 #endif
 			uint32_t size = strlen(fshader);
 			SceGxmProgram *t = shark_compile_shader_extended(fshader, &size, SHARK_FRAGMENT_SHADER, compiler_opts, compiler_fastmath, compiler_fastprecision, compiler_fastint);
+			// JK2VITA: never memcpy from a NULL compile result; keep the last program.
+			if (!t) {
+				ffp_dirty_frag = GL_FALSE;
+				return GL_FALSE;
+			}
 #ifdef DUMP_SHADER_SOURCES
 			if (t) {
 #endif
