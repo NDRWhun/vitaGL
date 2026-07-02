@@ -217,7 +217,7 @@ void main(
 	vEmission = emission;
 #endif
 #elif has_colors == 1
-	vColor = color;
+	vColor = clamp(color, 0.0f, 1.0f);
 #endif
 	psize = Mpoint_size;
 }

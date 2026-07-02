@@ -298,13 +298,14 @@ extern int NEW_DISPLAY_HEIGHT; // Requested new display height in pixels
 
 // Fixed-function pipeline shader cache settings
 #ifndef DISABLE_FS_SHADER_CACHE
-#define SHADER_CACHE_MAGIC 27 // This must be increased whenever ffp shader sources or shader mask/combiner mask changes
+#define SHADER_CACHE_MAGIC 29 // This must be increased whenever ffp shader sources or shader mask/combiner mask changes
 //#define DUMP_SHADER_SOURCES // Enable this flag to dump shader sources inside shader cache
 #endif
 
 // Custom shaders pipeline shader cache settings
 #ifdef HAVE_SHADER_CACHE
 extern char vgl_shader_cache_path[256];
+extern GLboolean ffp_shaders_broken; // set on FFP shader compile failure; draw paths skip the batch
 #endif
 
 extern GLboolean prim_is_non_native; // Flag for when a primitive not supported natively by sceGxm is used

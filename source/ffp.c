@@ -268,6 +268,7 @@ SceGxmProgram *ffp_vertex_program = NULL;
 SceGxmVertexProgram *ffp_vertex_program_patched; // Patched vertex program for the fixed function pipeline implementation
 SceGxmFragmentProgram *ffp_fragment_program_patched; // Patched fragment program for the fixed function pipeline implementation
 GLboolean ffp_dirty_frag = GL_TRUE;
+GLboolean ffp_shaders_broken = GL_FALSE; // set on shader compile failure; draw paths must skip the batch
 GLboolean ffp_dirty_vert = GL_TRUE;
 uint16_t dirty_vert_unifs = 0xFFFF;
 uint32_t dirty_frag_unifs = 0xFFFFFFFF;
@@ -440,6 +441,7 @@ uint8_t reload_ffp_shaders(SceGxmVertexAttribute *attrs, SceGxmVertexStream *str
 	mask.pos_fixed_mask = ffp_vertex_attrib_fixed_pos_mask;
 	mask.fast_perspective_correction = fast_perspective_correction_hint;
 	mask.srgb_mode = srgb_mode;
+	ffp_shaders_broken = GL_FALSE;
 	uint16_t draw_mask_state = ffp_vertex_attrib_state;
 
 	// Counting number of enabled texture units
@@ -631,11 +633,25 @@ uint8_t reload_ffp_shaders(SceGxmVertexAttribute *attrs, SceGxmVertexStream *str
 		if (f >= 0) {
 			// Gathering the precompiled shader from cache
 			uint32_t size = sceIoLseek(f, 0, SCE_SEEK_END);
-			sceIoLseek(f, 0, SCE_SEEK_SET);
-			ffp_vertex_program = (SceGxmProgram *)vglMalloc(size);
-			sceIoRead(f, ffp_vertex_program, size);
-			sceIoClose(f);
-		} else {
+			if (size < 64) {
+				// truncated by an interrupted write: drop the entry and recompile
+				sceIoClose(f);
+				sceIoRemove(fname);
+				f = -1;
+			} else {
+				sceIoLseek(f, 0, SCE_SEEK_SET);
+				ffp_vertex_program = (SceGxmProgram *)vglMalloc(size);
+				sceIoRead(f, ffp_vertex_program, size);
+				sceIoClose(f);
+				if (sceGxmProgramCheck(ffp_vertex_program)) {
+					// corrupted entry: drop it and recompile
+					vgl_free(ffp_vertex_program);
+					sceIoRemove(fname);
+					f = -1;
+				}
+			}
+		}
+		if (f < 0) {
 			// Restarting vitaShaRK if we released it before
 			if (!is_shark_online)
 				start_shader_compiler();
@@ -645,6 +661,14 @@ uint8_t reload_ffp_shaders(SceGxmVertexAttribute *attrs, SceGxmVertexStream *str
 			sprintf(vshader, ffp_vert_src, mask.clip_planes_num, mask.num_textures, mask.has_colors, mask.lights_num, mask.shading_mode, mask.normalize, mask.fixed_mask, mask.pos_fixed_mask, WVP_ON_GPU, mask.fast_perspective_correction);
 			uint32_t size = strlen(vshader);
 			SceGxmProgram *t = shark_compile_shader_extended(vshader, &size, SHARK_VERTEX_SHADER, compiler_opts, compiler_fastmath, compiler_fastprecision, compiler_fastint);
+			if (!t) {
+				// The state stays dirty (retries next draw). Callers must check
+				// ffp_shaders_broken: without a program there is nothing to bind,
+				// and drawing would reuse stale programs/streams.
+				vgl_log("%s:%d FFP vertex shader compile failed (mask %016llX).\n", __FILE__, __LINE__, (unsigned long long)vert_shader_mask);
+				ffp_shaders_broken = GL_TRUE;
+				return 0;
+			}
 #ifdef DUMP_SHADER_SOURCES
 			if (t) {
 #endif
@@ -858,11 +882,25 @@ uint8_t reload_ffp_shaders(SceGxmVertexAttribute *attrs, SceGxmVertexStream *str
 		if (f >= 0) {
 			// Gathering the precompiled shader from cache
 			uint32_t size = sceIoLseek(f, 0, SCE_SEEK_END);
-			sceIoLseek(f, 0, SCE_SEEK_SET);
-			ffp_fragment_program = (SceGxmProgram *)vglMalloc(size);
-			sceIoRead(f, ffp_fragment_program, size);
-			sceIoClose(f);
-		} else {
+			if (size < 64) {
+				// truncated by an interrupted write: drop the entry and recompile
+				sceIoClose(f);
+				sceIoRemove(fname);
+				f = -1;
+			} else {
+				sceIoLseek(f, 0, SCE_SEEK_SET);
+				ffp_fragment_program = (SceGxmProgram *)vglMalloc(size);
+				sceIoRead(f, ffp_fragment_program, size);
+				sceIoClose(f);
+				if (sceGxmProgramCheck(ffp_fragment_program)) {
+					// corrupted entry: drop it and recompile
+					vgl_free(ffp_fragment_program);
+					sceIoRemove(fname);
+					f = -1;
+				}
+			}
+		}
+		if (f < 0) {
 			// Restarting vitaShaRK if we released it before
 			if (!is_shark_online)
 				start_shader_compiler();
@@ -871,11 +909,23 @@ uint8_t reload_ffp_shaders(SceGxmVertexAttribute *attrs, SceGxmVertexStream *str
 			char fshader[8192];
 			char texenv_shad[8192] = {0};
 			GLboolean unused_mode[5] = {GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE};
+			// Emit texenvN from the same per-pass snapshot the fragment template
+			// references; the live texture_units[] index can diverge from the mask
+			// pass index and leave a referenced texenvN undeclared.
+			uint8_t pass_env_modes[3] = {
+				mask.tex_env_mode_pass0,
+				mask.tex_env_mode_pass1,
+#ifdef HAVE_HIGH_FFP_TEXUNITS
+				mask.tex_env_mode_pass2,
+#else
+				0,
+#endif
+			};
 			for (int i = 0; i < mask.num_textures; i++) {
 #ifndef DISABLE_TEXTURE_COMBINER
 				char tmp[1024];
 #endif
-				switch (texture_units[base_texture_id + i].env_mode) {
+				switch (pass_env_modes[i]) {
 				case MODULATE:
 					if (unused_mode[MODULATE]) {
 						sprintf(texenv_shad, "%s\n%s", texenv_shad, modulate_src);
@@ -932,6 +982,12 @@ uint8_t reload_ffp_shaders(SceGxmVertexAttribute *attrs, SceGxmVertexStream *str
 #endif
 			uint32_t size = strlen(fshader);
 			SceGxmProgram *t = shark_compile_shader_extended(fshader, &size, SHARK_FRAGMENT_SHADER, compiler_opts, compiler_fastmath, compiler_fastprecision, compiler_fastint);
+			if (!t) {
+				// Same contract as the vertex guard above.
+				vgl_log("%s:%d FFP fragment shader compile failed (mask %016llX).\n", __FILE__, __LINE__, (unsigned long long)frag_shader_mask);
+				ffp_shaders_broken = GL_TRUE;
+				return 0;
+			}
 #ifdef DUMP_SHADER_SOURCES
 			if (t) {
 #endif
@@ -1151,6 +1207,8 @@ uint8_t reload_ffp_shaders(SceGxmVertexAttribute *attrs, SceGxmVertexStream *str
 
 void _glDrawArrays_FixedFunctionIMPL(GLint first, GLsizei count) {
 	uint8_t mask_state = reload_ffp_shaders(NULL, NULL, SCE_GXM_INDEX_SOURCE_INDEX_16BIT);
+	if (ffp_shaders_broken)
+		return;
 #ifdef HAVE_PROFILING
 	uint32_t draw_start = sceKernelGetProcessTimeLow();
 #endif
@@ -1284,6 +1342,8 @@ void _glDrawArrays_FixedFunctionIMPL(GLint first, GLsizei count) {
 
 void _glMultiDrawArrays_FixedFunctionIMPL(SceGxmPrimitiveType gxm_p, uint16_t *idx_ptr, const GLint *first, const GLsizei *count, GLint lowest, GLsizei highest, GLsizei drawcount) {
 	uint8_t mask_state = reload_ffp_shaders(NULL, NULL, SCE_GXM_INDEX_SOURCE_INDEX_16BIT);
+	if (ffp_shaders_broken)
+		return;
 #ifdef HAVE_PROFILING
 	uint32_t draw_start = sceKernelGetProcessTimeLow();
 #endif
@@ -1434,6 +1494,8 @@ void _glMultiDrawArrays_FixedFunctionIMPL(SceGxmPrimitiveType gxm_p, uint16_t *i
 
 void _glDrawElements_FixedFunctionIMPL(uint16_t *idx_buf, GLsizei count, uint32_t top_idx, uint32_t base_idx, SceGxmIndexSource index_type) {
 	uint8_t mask_state = reload_ffp_shaders(NULL, NULL, index_type);
+	if (ffp_shaders_broken)
+		return;
 #ifdef HAVE_PROFILING
 	uint32_t draw_start = sceKernelGetProcessTimeLow();
 #endif
@@ -2565,6 +2627,9 @@ void glEnd(void) {
 
 	// Restoring original attributes state settings
 	ffp_vertex_attrib_state = orig_state;
+
+	if (ffp_shaders_broken)
+		return;
 
 	// Uploading vertex streams and performing the draw
 	for (int i = 0; i < ffp_vertex_num_params; i++) {
