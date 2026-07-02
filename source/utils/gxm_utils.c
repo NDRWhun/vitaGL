@@ -23,33 +23,42 @@
 #include "../shared.h"
 #include <stdio.h>
 
-#define UNIFORM_CIRCULAR_POOL_SIZE (2 * 1024 * 1024)
+#define UNIFORM_CIRCULAR_POOL_SLICE (1 * 1024 * 1024) // per in-flight frame
 
 void *vgl_def_frag_buf = NULL;
 void *vgl_def_vert_buf = NULL;
 static uint8_t *unif_pool = NULL;
+static uint8_t *unif_slice = NULL;
 static uint32_t unif_idx = 0;
 
 void vglSetupUniformCircularPool() {
 	if (!unif_pool) {
-		unif_pool = gpu_alloc_mapped_for_cpu(UNIFORM_CIRCULAR_POOL_SIZE);
+		unif_pool = gpu_alloc_mapped_for_cpu(UNIFORM_CIRCULAR_POOL_SLICE * gxm_display_buffer_count);
+		unif_slice = unif_pool;
 	}
+}
+
+// Called at buffer swap: per-frame slices give uniforms the same lifetime
+// guarantees as the vertex circular pool.
+void vglRotateUniformCircularPool() {
+	unif_slice = unif_pool + UNIFORM_CIRCULAR_POOL_SLICE * vgl_circular_idx;
+	unif_idx = 0;
 }
 
 void *vglReserveUniformCircularPoolBuffer(uint32_t size) {
 	void *r;
-	if (unif_idx + size >= UNIFORM_CIRCULAR_POOL_SIZE) {
+	if (unif_idx + size >= UNIFORM_CIRCULAR_POOL_SLICE) {
 #ifndef SKIP_ERROR_HANDLING
-		static uint32_t last_frame_swap = 0;
-		if (last_frame_swap == vgl_framecount) {
-			vgl_log("%s:%d Circular Uniform Pool outage detected! Consider increasing UNIFORM_CIRCULAR_POOL_SIZE...\n", __FILE__, __LINE__);
+		static uint32_t last_frame_log = 0;
+		if (last_frame_log != vgl_framecount) {
+			vgl_log("%s:%d Uniform pool slice exhausted, spilling to the vertex pool.\n", __FILE__, __LINE__);
+			last_frame_log = vgl_framecount;
 		}
-		last_frame_swap = vgl_framecount;
 #endif
-		r = unif_pool;
-		unif_idx = size;
+		// spill to the vertex pool rather than wrap over in-flight uniforms
+		r = vgl_reserve_data_pool(size);
 	} else {
-		r = (unif_pool + unif_idx);
+		r = (unif_slice + unif_idx);
 		unif_idx += size;
 	}
 	return r;

@@ -29,6 +29,7 @@ extern void *vgl_def_vert_buf;
 extern SceGxmContext *gxm_context;
 
 void vglSetupUniformCircularPool(void);
+void vglRotateUniformCircularPool(void);
 void *vglReserveUniformCircularPoolBuffer(uint32_t size);
 
 void vglSetUniformData(uint8_t *uniformBuffer, const SceGxmParameterType t, const int offset, const uint32_t count, const uint32_t componentCount, const void *sourceData, const SceGxmParameterType input_type);
