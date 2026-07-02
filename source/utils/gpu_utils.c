@@ -701,14 +701,18 @@ void gpu_alloc_compressed_texture(int32_t mip_level, uint32_t w, uint32_t h, Sce
 		if (mip_count >= mip_level)
 			texture_data = tex->data;
 		else {
-			texture_data = vgl_realloc(tex->data, tex_size);
-			if (!texture_data) {
-				// Reallocation in the same mspace failed, try manually.
-				texture_data = gpu_alloc_mapped_for_gpu(tex_size);
-				const int old_data_size = gpu_get_compressed_mipchain_size(mip_count, aligned_max_width, aligned_max_height, format);
-				vgl_memcpy(texture_data, tex->data, old_data_size);
-				gpu_free_texture_data(tex);
-			}
+			// Don't realloc here: the old block can come from the raw memblock fallback
+			// allocator (realloc would misroute it) and the GPU may still be reading it.
+			// Alloc + copy instead, and let the deferred texture free reclaim the old chain.
+			// The previous mip levels were uploaded with sceGxmTransferCopy, which is
+			// asynchronous - wait for those transfers before reading or freeing the chain.
+			sceGxmTransferFinish();
+			texture_data = gpu_alloc_mapped_for_gpu(tex_size);
+			if (!texture_data)
+				return;
+			const int old_data_size = gpu_get_compressed_mipchain_size(mip_count, aligned_max_width, aligned_max_height, format);
+			vgl_memcpy(texture_data, tex->data, old_data_size);
+			gpu_free_texture_data(tex);
 
 			// Set new mip count.
 			mip_count = mip_level;
