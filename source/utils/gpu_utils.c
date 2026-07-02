@@ -596,19 +596,9 @@ void gpu_alloc_compressed_cube_texture(uint32_t w, uint32_t h, SceGxmTextureForm
 				case SCE_GXM_TEXTURE_FORMAT_UBC2_ABGR:
 				case SCE_GXM_TEXTURE_FORMAT_UBC3_ABGR:
 				case SCE_GXM_TEXTURE_FORMAT_UBC5_GR:
-					if (aligned_width == w && aligned_height == h && h <= 2048 && w <= 2048) {
-#ifdef TEXTURE_UPLOADS_SPEEDHACK
-						void *mapped_src = data;
-#else
-						void *mapped_src = gpu_alloc_mapped_temp(image_size);
-						vgl_fast_memcpy(mapped_src, data, image_size);
-#endif
-						sceGxmTransferCopy(w / 4, h / 4, 0, 0, SCE_GXM_TRANSFER_COLORKEY_NONE,
-							SCE_GXM_TRANSFER_FORMAT_RAW128, SCE_GXM_TRANSFER_LINEAR, mapped_src, 0, 0, w * 4,
-							SCE_GXM_TRANSFER_FORMAT_RAW128, SCE_GXM_TRANSFER_SWIZZLED, mip_data, 0, 0, w * 4, NULL, 0, NULL);
-					} else {
-						SwizzleTexData128Bpp((uint8_t *)mip_data, (uint8_t *)data, 0, 0, ALIGNBLOCK(w, 4), ALIGNBLOCK(h, 4), ALIGNBLOCK(w, 4), ALIGNBLOCK(MIN(aligned_width, aligned_height), 4));
-					}
+					// The RAW128 transfer swizzles 16-byte blocks in the wrong order for
+					// these formats (DXT5 comes out scrambled), so swizzle on the CPU.
+					SwizzleTexData128Bpp((uint8_t *)mip_data, (uint8_t *)data, 0, 0, ALIGNBLOCK(w, 4), ALIGNBLOCK(h, 4), ALIGNBLOCK(w, 4), ALIGNBLOCK(MIN(aligned_width, aligned_height), 4));
 					break;
 				case SCE_GXM_TEXTURE_FORMAT_ETC1_1BGR:
 					SwizzleTexDataETC1((uint8_t *)mip_data, (uint8_t *)data, 0, 0, ALIGNBLOCK(w, 4), ALIGNBLOCK(h, 4), ALIGNBLOCK(w, 4), ALIGNBLOCK(MIN(aligned_width, aligned_height), 4));
@@ -629,19 +619,9 @@ void gpu_alloc_compressed_cube_texture(uint32_t w, uint32_t h, SceGxmTextureForm
 					}
 					break;
 				default:
-					if (aligned_width == w && aligned_height == h && h <= 2048) {
-#ifdef TEXTURE_UPLOADS_SPEEDHACK
-						void *mapped_src = data;
-#else
-						void *mapped_src = gpu_alloc_mapped_temp(image_size);
-						vgl_fast_memcpy(mapped_src, data, image_size);
-#endif
-						sceGxmTransferCopy(w / 4, h / 4, 0, 0, SCE_GXM_TRANSFER_COLORKEY_NONE,
-							SCE_GXM_TRANSFER_FORMAT_RAW64, SCE_GXM_TRANSFER_LINEAR, mapped_src, 0, 0, w * 2,
-							SCE_GXM_TRANSFER_FORMAT_RAW64, SCE_GXM_TRANSFER_SWIZZLED, mip_data, 0, 0, w * 2, NULL, 0, NULL);
-					} else {
-						SwizzleTexData64Bpp((uint8_t *)mip_data, (uint8_t *)data, 0, 0, ALIGNBLOCK(w, 4), ALIGNBLOCK(h, 4), ALIGNBLOCK(w, 4), ALIGNBLOCK(MIN(aligned_width, aligned_height), 4));
-					}
+					// The RAW64 transfer swizzles 8-byte blocks in the wrong order for
+					// these formats (DXT1 comes out scrambled), so swizzle on the CPU.
+					SwizzleTexData64Bpp((uint8_t *)mip_data, (uint8_t *)data, 0, 0, ALIGNBLOCK(w, 4), ALIGNBLOCK(h, 4), ALIGNBLOCK(w, 4), ALIGNBLOCK(MIN(aligned_width, aligned_height), 4));
 					break;
 				}
 			}
@@ -744,19 +724,9 @@ void gpu_alloc_compressed_texture(int32_t mip_level, uint32_t w, uint32_t h, Sce
 				case SCE_GXM_TEXTURE_FORMAT_UBC2_ABGR:
 				case SCE_GXM_TEXTURE_FORMAT_UBC3_ABGR:
 				case SCE_GXM_TEXTURE_FORMAT_UBC5_GR:
-					if (aligned_width == w && aligned_height == h && h <= 2048 && w <= 2048) {
-#ifdef TEXTURE_UPLOADS_SPEEDHACK
-						void *mapped_src = data;
-#else
-						void *mapped_src = gpu_alloc_mapped_temp(image_size);
-						vgl_fast_memcpy(mapped_src, data, image_size);
-#endif
-						sceGxmTransferCopy(w / 4, h / 4, 0, 0, SCE_GXM_TRANSFER_COLORKEY_NONE,
-							SCE_GXM_TRANSFER_FORMAT_RAW128, SCE_GXM_TRANSFER_LINEAR, mapped_src, 0, 0, w * 4,
-							SCE_GXM_TRANSFER_FORMAT_RAW128, SCE_GXM_TRANSFER_SWIZZLED, mip_data, 0, 0, w * 4, NULL, 0, NULL);
-					} else {
-						SwizzleTexData128Bpp((uint8_t *)mip_data, (uint8_t *)data, 0, 0, ALIGNBLOCK(w, 4), ALIGNBLOCK(h, 4), ALIGNBLOCK(w, 4), ALIGNBLOCK(MIN(aligned_width, aligned_height), 4));
-					}
+					// The RAW128 transfer swizzles 16-byte blocks in the wrong order for
+					// these formats (DXT5 comes out scrambled), so swizzle on the CPU.
+					SwizzleTexData128Bpp((uint8_t *)mip_data, (uint8_t *)data, 0, 0, ALIGNBLOCK(w, 4), ALIGNBLOCK(h, 4), ALIGNBLOCK(w, 4), ALIGNBLOCK(MIN(aligned_width, aligned_height), 4));
 					break;
 				case SCE_GXM_TEXTURE_FORMAT_ETC1_1BGR:
 					SwizzleTexDataETC1((uint8_t *)mip_data, (uint8_t *)data, 0, 0, ALIGNBLOCK(w, 4), ALIGNBLOCK(h, 4), ALIGNBLOCK(w, 4), ALIGNBLOCK(MIN(aligned_width, aligned_height), 4));
@@ -777,19 +747,9 @@ void gpu_alloc_compressed_texture(int32_t mip_level, uint32_t w, uint32_t h, Sce
 					}
 					break;
 				default:
-					if (aligned_width == w && aligned_height == h && h <= 2048) {
-#ifdef TEXTURE_UPLOADS_SPEEDHACK
-						void *mapped_src = data;
-#else
-						void *mapped_src = gpu_alloc_mapped_temp(image_size);
-						vgl_fast_memcpy(mapped_src, data, image_size);
-#endif
-						sceGxmTransferCopy(w / 4, h / 4, 0, 0, SCE_GXM_TRANSFER_COLORKEY_NONE,
-							SCE_GXM_TRANSFER_FORMAT_RAW64, SCE_GXM_TRANSFER_LINEAR, mapped_src, 0, 0, w * 2,
-							SCE_GXM_TRANSFER_FORMAT_RAW64, SCE_GXM_TRANSFER_SWIZZLED, mip_data, 0, 0, w * 2, NULL, 0, NULL);
-					} else {
-						SwizzleTexData64Bpp((uint8_t *)mip_data, (uint8_t *)data, 0, 0, ALIGNBLOCK(w, 4), ALIGNBLOCK(h, 4), ALIGNBLOCK(w, 4), MIN(ALIGNBLOCK(aligned_width, 4), ALIGNBLOCK(aligned_height, 4)));
-					}
+					// The RAW64 transfer swizzles 8-byte blocks in the wrong order for
+					// these formats (DXT1 comes out scrambled), so swizzle on the CPU.
+					SwizzleTexData64Bpp((uint8_t *)mip_data, (uint8_t *)data, 0, 0, ALIGNBLOCK(w, 4), ALIGNBLOCK(h, 4), ALIGNBLOCK(w, 4), ALIGNBLOCK(MIN(aligned_width, aligned_height), 4));
 					break;
 				}
 			}
