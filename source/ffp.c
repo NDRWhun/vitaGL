@@ -643,8 +643,8 @@ uint8_t reload_ffp_shaders(SceGxmVertexAttribute *attrs, SceGxmVertexStream *str
 				ffp_vertex_program = (SceGxmProgram *)vglMalloc(size);
 				sceIoRead(f, ffp_vertex_program, size);
 				sceIoClose(f);
-				if (sceGxmProgramCheck(ffp_vertex_program)) {
-					// corrupted entry: drop it and recompile
+				if (sceGxmProgramCheck(ffp_vertex_program) || sceGxmProgramGetSize(ffp_vertex_program) > size) {
+					// corrupted or truncated entry: drop it and recompile
 					vgl_free(ffp_vertex_program);
 					sceIoRemove(fname);
 					f = -1;
@@ -676,10 +676,19 @@ uint8_t reload_ffp_shaders(SceGxmVertexAttribute *attrs, SceGxmVertexStream *str
 				vgl_fast_memcpy((void *)ffp_vertex_program, (void *)t, size);
 				shark_clear_output();
 				
-				// Saving compiled shader in filesystem cache
-				f = sceIoOpen(fname, SCE_O_WRONLY | SCE_O_TRUNC | SCE_O_CREAT, 0777);
-				sceIoWrite(f, ffp_vertex_program, size);
-				sceIoClose(f);
+				// Saving compiled shader in filesystem cache; stage + rename so an
+				// interrupted write can't leave a loadable half-file
+				char tmpname[264];
+				sprintf(tmpname, "%s.tmp", fname);
+				f = sceIoOpen(tmpname, SCE_O_WRONLY | SCE_O_TRUNC | SCE_O_CREAT, 0777);
+				if (sceIoWrite(f, ffp_vertex_program, size) == size) {
+					sceIoClose(f);
+					sceIoRemove(fname);
+					sceIoRename(tmpname, fname);
+				} else {
+					sceIoClose(f);
+					sceIoRemove(tmpname);
+				}
 #ifdef DUMP_SHADER_SOURCES
 			}
 #ifdef HAVE_HIGH_FFP_TEXUNITS
@@ -892,8 +901,8 @@ uint8_t reload_ffp_shaders(SceGxmVertexAttribute *attrs, SceGxmVertexStream *str
 				ffp_fragment_program = (SceGxmProgram *)vglMalloc(size);
 				sceIoRead(f, ffp_fragment_program, size);
 				sceIoClose(f);
-				if (sceGxmProgramCheck(ffp_fragment_program)) {
-					// corrupted entry: drop it and recompile
+				if (sceGxmProgramCheck(ffp_fragment_program) || sceGxmProgramGetSize(ffp_fragment_program) > size) {
+					// corrupted or truncated entry: drop it and recompile
 					vgl_free(ffp_fragment_program);
 					sceIoRemove(fname);
 					f = -1;
@@ -995,10 +1004,19 @@ uint8_t reload_ffp_shaders(SceGxmVertexAttribute *attrs, SceGxmVertexStream *str
 			vgl_fast_memcpy((void *)ffp_fragment_program, (void *)t, size);
 			shark_clear_output();
 
-			// Saving compiled shader in filesystem cache
-			f = sceIoOpen(fname, SCE_O_WRONLY | SCE_O_CREAT | SCE_O_TRUNC, 0777);
-			sceIoWrite(f, ffp_fragment_program, size);
-			sceIoClose(f);
+			// Saving compiled shader in filesystem cache; stage + rename so an
+			// interrupted write can't leave a loadable half-file
+			char tmpname[264];
+			sprintf(tmpname, "%s.tmp", fname);
+			f = sceIoOpen(tmpname, SCE_O_WRONLY | SCE_O_CREAT | SCE_O_TRUNC, 0777);
+			if (sceIoWrite(f, ffp_fragment_program, size) == size) {
+				sceIoClose(f);
+				sceIoRemove(fname);
+				sceIoRename(tmpname, fname);
+			} else {
+				sceIoClose(f);
+				sceIoRemove(tmpname);
+			}
 #ifdef DUMP_SHADER_SOURCES
 			}
 #ifndef DISABLE_TEXTURE_COMBINER
