@@ -41,7 +41,12 @@ void vglSetupUniformCircularPool() {
 // Called at buffer swap: per-frame slices give uniforms the same lifetime
 // guarantees as the vertex circular pool.
 void vglRotateUniformCircularPool() {
+#if !defined(DISABLE_CIRCULAR_POOL) && !defined(CIRCULAR_POOL_SPEEDHACK)
 	unif_slice = unif_pool + UNIFORM_CIRCULAR_POOL_SLICE * vgl_circular_idx;
+#else
+	// no per-buffer circular pool in this config: reuse the single slice
+	unif_slice = unif_pool;
+#endif
 	unif_idx = 0;
 }
 
@@ -51,12 +56,16 @@ void *vglReserveUniformCircularPoolBuffer(uint32_t size) {
 #ifndef SKIP_ERROR_HANDLING
 		static uint32_t last_frame_log = 0;
 		if (last_frame_log != vgl_framecount) {
-			vgl_log("%s:%d Uniform pool slice exhausted, spilling to the vertex pool.\n", __FILE__, __LINE__);
+			vgl_log("%s:%d Uniform pool slice exhausted, spilling.\n", __FILE__, __LINE__);
 			last_frame_log = vgl_framecount;
 		}
 #endif
-		// spill to the vertex pool rather than wrap over in-flight uniforms
+		// spill rather than wrap over in-flight uniforms
+#ifdef DISABLE_CIRCULAR_POOL
+		r = gpu_alloc_mapped_for_cpu(size);
+#else
 		r = vgl_reserve_data_pool(size);
+#endif
 	} else {
 		r = (unif_slice + unif_idx);
 		unif_idx += size;

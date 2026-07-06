@@ -553,7 +553,7 @@ uint8_t reload_ffp_shaders(SceGxmVertexAttribute *attrs, SceGxmVertexStream *str
 	}
 	
 #ifdef HAVE_HIGH_FFP_TEXUNITS
-	// bits 32+ (point sprite, fast perspective correction, srgb) are part of the cache key
+	// the high (bit 32+) mask fields are part of the cache key and the disk filename
 	uint64_t vert_shader_mask = mask.raw & VERTEX_SHADER_MASK;
 	uint64_t frag_shader_mask = mask.raw & FRAGMENT_SHADER_MASK;
 #else
@@ -668,10 +668,10 @@ uint8_t reload_ffp_shaders(SceGxmVertexAttribute *attrs, SceGxmVertexStream *str
 			uint32_t size = strlen(vshader);
 			SceGxmProgram *t = shark_compile_shader_extended(vshader, &size, SHARK_VERTEX_SHADER, compiler_opts, compiler_fastmath, compiler_fastprecision, compiler_fastint);
 			if (!t) {
-				// The state stays dirty (retries next draw). Callers must check
-				// ffp_shaders_broken: without a program there is nothing to bind,
-				// and drawing would reuse stale programs/streams.
+				// compile failed: scrub the cached config so the next same-state
+				// draw retries the compile instead of binding this unbuilt program.
 				vgl_log("%s:%d FFP vertex shader compile failed (mask %016llX).\n", __FILE__, __LINE__, (unsigned long long)vert_shader_mask);
+				ffp_mask.raw = ~0ULL;
 				ffp_shaders_broken = GL_TRUE;
 				return 0;
 			}
@@ -687,12 +687,14 @@ uint8_t reload_ffp_shaders(SceGxmVertexAttribute *attrs, SceGxmVertexStream *str
 				char tmpname[264];
 				sprintf(tmpname, "%s.tmp", fname);
 				f = sceIoOpen(tmpname, SCE_O_WRONLY | SCE_O_TRUNC | SCE_O_CREAT, 0777);
-				if (sceIoWrite(f, ffp_vertex_program, size) == size) {
+				if (f >= 0 && sceIoWrite(f, ffp_vertex_program, size) == size) {
 					sceIoClose(f);
 					sceIoRemove(fname);
-					sceIoRename(tmpname, fname);
+					if (sceIoRename(tmpname, fname) < 0)
+						sceIoRemove(tmpname);
 				} else {
-					sceIoClose(f);
+					if (f >= 0)
+						sceIoClose(f);
 					sceIoRemove(tmpname);
 				}
 #ifdef DUMP_SHADER_SOURCES
@@ -998,8 +1000,9 @@ uint8_t reload_ffp_shaders(SceGxmVertexAttribute *attrs, SceGxmVertexStream *str
 			uint32_t size = strlen(fshader);
 			SceGxmProgram *t = shark_compile_shader_extended(fshader, &size, SHARK_FRAGMENT_SHADER, compiler_opts, compiler_fastmath, compiler_fastprecision, compiler_fastint);
 			if (!t) {
-				// Same contract as the vertex guard above.
+				// compile failed: same as the vertex guard above.
 				vgl_log("%s:%d FFP fragment shader compile failed (mask %016llX).\n", __FILE__, __LINE__, (unsigned long long)frag_shader_mask);
+				ffp_mask.raw = ~0ULL;
 				ffp_shaders_broken = GL_TRUE;
 				return 0;
 			}
@@ -1015,12 +1018,14 @@ uint8_t reload_ffp_shaders(SceGxmVertexAttribute *attrs, SceGxmVertexStream *str
 			char tmpname[264];
 			sprintf(tmpname, "%s.tmp", fname);
 			f = sceIoOpen(tmpname, SCE_O_WRONLY | SCE_O_CREAT | SCE_O_TRUNC, 0777);
-			if (sceIoWrite(f, ffp_fragment_program, size) == size) {
+			if (f >= 0 && sceIoWrite(f, ffp_fragment_program, size) == size) {
 				sceIoClose(f);
 				sceIoRemove(fname);
-				sceIoRename(tmpname, fname);
+				if (sceIoRename(tmpname, fname) < 0)
+					sceIoRemove(tmpname);
 			} else {
-				sceIoClose(f);
+				if (f >= 0)
+					sceIoClose(f);
 				sceIoRemove(tmpname);
 			}
 #ifdef DUMP_SHADER_SOURCES
