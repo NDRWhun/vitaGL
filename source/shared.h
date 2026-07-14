@@ -298,7 +298,7 @@ extern int NEW_DISPLAY_HEIGHT; // Requested new display height in pixels
 
 // Fixed-function pipeline shader cache settings
 #ifndef DISABLE_FS_SHADER_CACHE
-#define SHADER_CACHE_MAGIC 29 // This must be increased whenever ffp shader sources or shader mask/combiner mask changes
+#define SHADER_CACHE_MAGIC 30 // This must be increased whenever ffp shader sources or shader mask/combiner mask changes
 //#define DUMP_SHADER_SOURCES // Enable this flag to dump shader sources inside shader cache
 #endif
 
@@ -884,15 +884,16 @@ extern SceGxmVertexStream ffp_vertex_stream_config[FFP_VERTEX_ATTRIBS_NUM];
 
 // Fixed function pipeline attribute masks
 enum {
-	FFP_ATTRIB_POSITION = 0,
-	FFP_ATTRIB_TEX0 = 1,
-	FFP_ATTRIB_COLOR = 2,
-	FFP_ATTRIB_DIFFUSE = 3,
-	FFP_ATTRIB_SPECULAR = 4,
-	FFP_ATTRIB_EMISSION = 5,
-	FFP_ATTRIB_NORMAL = 6,
-	FFP_ATTRIB_TEX1 = 7,
-	FFP_ATTRIB_TEX2 = 8,
+	FFP_ATTRIB_POSITION, // N
+	FFP_ATTRIB_TEX0, // O
+	FFP_ATTRIB_COLOR, // P
+	FFP_ATTRIB_DIFFUSE, // Q
+	FFP_ATTRIB_SPECULAR, // R
+	FFP_ATTRIB_EMISSION, // S
+	FFP_ATTRIB_NORMAL, // T
+	FFP_ATTRIB_TEX1, // U
+	FFP_ATTRIB_TEX2, // V
+	FFP_ATTRIBS_NUM,
 	FFP_ATTRIB_MASK_ALL = 0xFFFF
 };
 enum {
@@ -1232,7 +1233,7 @@ GLenum gxm_blend_eq_to_gl(SceGxmBlendFunc factor); // Converts SceGxmBlendFunc t
 /* custom_shaders.c */
 void reset_custom_shaders(void); // Resets custom shaders
 float *reserve_attrib_pool(uint8_t count);
-void _vglDrawObjects_CustomShadersIMPL(GLboolean implicit_wvp); // vglDrawObjects implementation for rendering with custom shaders
+void _vglDrawObjects_CustomShadersIMPL(); // vglDrawObjects implementation for rendering with custom shaders
 GLboolean _glDrawElements_CustomShadersIMPL(uint16_t *idx_buf, GLsizei count, uint32_t top_idx, uint32_t base_idx, GLboolean is_short); // glDrawElements implementation for rendering with custom shaders
 GLboolean _glDrawArrays_CustomShadersIMPL(GLint first, GLsizei count, GLboolean instanced); // glDrawArrays implementation for rendering with custom shaders
 void _glMultiDrawArrays_CustomShadersIMPL(SceGxmPrimitiveType gxm_p, uint16_t *idx_buf, const GLint *first, const GLsizei *count, GLint lowest, GLsizei highest, GLsizei drawcount); // glMultiDrawArrays implementation for rendering with custom shaders
