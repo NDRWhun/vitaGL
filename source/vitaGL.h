@@ -338,6 +338,7 @@ extern "C" {
 #define GL_NUM_EXTENSIONS                               0x821D
 #define GL_RG                                           0x8227
 #define GL_R8                                           0x8229
+#define GL_RG8                                          0x822B
 #define GL_QUERY_TARGET                                 0x82EA
 #define GL_UNSIGNED_SHORT_5_6_5                         0x8363
 #define GL_UNSIGNED_SHORT_1_5_5_5_REV                   0x8366
@@ -456,6 +457,7 @@ extern "C" {
 #define GL_MAX_FRAGMENT_UNIFORM_COMPONENTS              0x8B49
 #define GL_MAX_VERTEX_UNIFORM_COMPONENTS                0x8B4A
 #define GL_MAX_VERTEX_TEXTURE_IMAGE_UNITS               0x8B4C
+#define GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS             0x8B4D
 #define GL_SHADER_TYPE                                  0x8B4F
 #define GL_FLOAT_VEC2                                   0x8B50
 #define GL_FLOAT_VEC3                                   0x8B51
@@ -520,22 +522,22 @@ extern "C" {
 #define GL_COLOR_ATTACHMENT0                            0x8CE0
 #define GL_FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE           0x8CD0
 #define GL_FRAMEBUFFER_ATTACHMENT_OBJECT_NAME           0x8CD1
+#define GL_FRAMEBUFFER_COMPLETE                         0x8CD5
+#define GL_FRAMEBUFFER_INCOMPLETE_MISSING_ATTACHMENT    0x8CD7
 #define GL_MAX_COLOR_ATTACHMENTS                        0x8CDF
 #define GL_DEPTH_ATTACHMENT                             0x8D00
 #define GL_STENCIL_ATTACHMENT                           0x8D20
+#define GL_FRAMEBUFFER                                  0x8D40
+#define GL_RENDERBUFFER                                 0x8D41
+#define GL_STENCIL_INDEX8                               0x8D48
+#define GL_HALF_FLOAT_OES                               0x8D61
+#define GL_ETC1_RGB8_OES                                0x8D64
+#define GL_ANY_SAMPLES_PASSED_CONSERVATIVE              0x8D6A
 #define GL_DEPTH_COMPONENT32F                           0x8DAB
 #define GL_DEPTH32F_STENCIL8                            0x8DAC
 #define GL_FRAMEBUFFER_SRGB                             0x8DB9
 #define GL_COMPRESSED_RED_RGTC1                         0x8DBB
 #define GL_COMPRESSED_RG_RGTC2                          0x8DBD
-#define GL_FRAMEBUFFER_COMPLETE                         0x8CD5
-#define GL_FRAMEBUFFER_INCOMPLETE_MISSING_ATTACHMENT    0x8CD7
-#define GL_FRAMEBUFFER                                  0x8D40
-#define GL_RENDERBUFFER                                 0x8D41
-#define GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS             0x8B4D
-#define GL_HALF_FLOAT_OES                               0x8D61
-#define GL_ETC1_RGB8_OES                                0x8D64
-#define GL_ANY_SAMPLES_PASSED_CONSERVATIVE              0x8D6A
 #define GL_SHADER_BINARY_FORMATS                        0x8DF8
 #define GL_NUM_SHADER_BINARY_FORMATS                    0x8DF9
 #define GL_SHADER_COMPILER                              0x8DFA
@@ -819,6 +821,7 @@ void glGetProgramBinary(GLuint program, GLsizei bufSize, GLsizei *length, GLenum
 void glGetProgramInfoLog(GLuint program, GLsizei maxLength, GLsizei *length, GLchar *infoLog);
 void glGetProgramiv(GLuint program, GLenum pname, GLint *params);
 void glGetQueryObjectiv(GLuint id, GLenum pname, GLint *params);
+void glGetQueryObjectuiv(GLuint id, GLenum pname, GLuint *params);
 void glGetShaderInfoLog(GLuint handle, GLsizei maxLength, GLsizei *length, GLchar *infoLog);
 void glGetShaderiv(GLuint handle, GLenum pname, GLint *params);
 void glGetShaderSource(GLuint handle, GLsizei bufSize, GLsizei *length, GLchar *source);
