@@ -2622,6 +2622,7 @@ void glEnd(void) {
 
 	ffp_dirty_frag = GL_TRUE;
 	ffp_dirty_vert = GL_TRUE;
+	ffp_dirty_vert_attr = 0xFFFF; // immediate mode owns legacy_*_attrib_config, untracked by the per-attrib dirty bits; refill regIndex + repatch every glEnd
 	if (texture_units[1].state) { // Multitexture usage
 		ffp_vertex_attrib_state = FFP_ATTRIB_MASK_ALL;
 		reload_ffp_shaders(legacy_mt_vertex_attrib_config, legacy_mt_vertex_stream_config, SCE_GXM_INDEX_SOURCE_INDEX_16BIT);
